@@ -1,0 +1,38 @@
+/html
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+/server
+/raw_assets
+*.ilk
+*.pdb
+*.vs
+*.vcxpro*
+olc_code_jam_2020/Debug
+olc_code_jam_2020/x64
+src/imgui/imgui_demo.cpp
