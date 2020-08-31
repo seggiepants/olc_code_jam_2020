@@ -18,6 +18,7 @@ public:
 private:
 	SDL_Window* window;
 	SDL_Renderer* renderer;
+	SDL_Joystick* joystick;
 	double cooldown;
 	bool up;
 	bool down;

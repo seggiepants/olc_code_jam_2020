@@ -4,6 +4,7 @@
 #include "../utility.h"
 
 const int MOVE_SPEED = 400; // pixels per second.
+const int JOYSTICK_DEAD_ZONE = 8000;
 const double COOLDOWN_MAX = 3000.0;
 
 const int FONT_DEFAULT = 0;
@@ -17,6 +18,7 @@ SceneGame::SceneGame() {
 	this->up = this->down = this->left = this->right = false;
 	this->x = this->y = 0.0;
 	this->cooldown = 0;
+	this->joystick = NULL;
 }
 
 SceneGame::~SceneGame() {
@@ -52,6 +54,16 @@ void SceneGame::loadMedia() {
 void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer) {
 	this->window = window;
 	this->renderer = renderer;
+	this->joystick = NULL;
+	if (SDL_NumJoysticks() >= 1)
+	{
+		//Load joystick
+		this->joystick = SDL_JoystickOpen(0);
+		if (this->joystick == NULL)
+		{
+			std::cout << "Warning: Unable to open game controller! SDL Error: \"" << SDL_GetError()  << "\"" << std::endl;
+		}
+	}
 	this->quit = false;
 	this->up = this->down = this->left = this->right = false;
 	this->x = this->y = 0.0;
@@ -63,6 +75,13 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer) {
 }
 
 void SceneGame::destroy() {
+
+	//Close game controller
+	if (this->joystick != NULL) {
+		SDL_JoystickClose(this->joystick);
+		this->joystick = NULL;
+	}
+
 	for (const auto &element : this->audio) {
 		Mix_FreeChunk(element.second);
 	}
@@ -147,6 +166,67 @@ void SceneGame::update(double ms) {
 			default:
 				std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
 				break;
+			}
+		}
+		else if (e.type == SDL_JOYAXISMOTION)
+		{
+			//Motion on controller 0
+			if (e.jaxis.which == 0)
+			{
+				//X axis motion
+				if (e.jaxis.axis == 0)
+				{
+					//Left of dead zone
+					if (e.jaxis.value < -JOYSTICK_DEAD_ZONE)
+					{
+						this->left = true;
+					}
+					//Right of dead zone
+					else if (e.jaxis.value > JOYSTICK_DEAD_ZONE)
+					{
+						this->right = true;
+					}
+					else
+					{
+						this->left = this->right = false;
+					}
+				}
+				//Y axis motion
+				else if (e.jaxis.axis == 1) 
+				{
+					//Below of dead zone
+					if (e.jaxis.value < -JOYSTICK_DEAD_ZONE)
+					{
+						this->up = true;
+					}
+					//Above of dead zone
+					else if (e.jaxis.value > JOYSTICK_DEAD_ZONE)
+					{
+						this->down = true;
+					}
+					else
+					{
+						this->up = this->down = false;
+					}
+				}
+			}
+		}
+		else if (e.type == SDL_JOYBUTTONDOWN)
+		{
+			if (e.jbutton.which == 0)
+			{
+				std::cout << "Joystick button down. Button #" << (int) e.jbutton.button << std::endl;
+			}
+		}
+		else if (e.type == SDL_JOYBUTTONUP) {
+			if (e.jbutton.which == 0)
+			{
+				if (e.jbutton.button == 1) {
+					this->quit = true;
+				}
+				else {
+					std::cout << "Joystick button up. Button #" << (int) e.jbutton.button << std::endl;
+				}
 			}
 		}
 	}
