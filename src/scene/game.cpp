@@ -4,7 +4,6 @@
 #include "../utility.h"
 
 const int MOVE_SPEED = 400; // pixels per second.
-const int JOYSTICK_DEAD_ZONE = 8000;
 const double COOLDOWN_MAX = 3000.0;
 
 const int FONT_DEFAULT = 0;
@@ -19,10 +18,15 @@ SceneGame::SceneGame() {
 	this->x = this->y = 0.0;
 	this->cooldown = 0;
 	this->joystick = NULL;
+	this->pause = false;
 }
 
 SceneGame::~SceneGame() {
 	this->destroy();
+}
+
+int SceneGame::getNextState() {
+	return STATE_MENU;
 }
 
 void SceneGame::loadMedia() {
@@ -67,6 +71,7 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer) {
 	this->quit = false;
 	this->up = this->down = this->left = this->right = false;
 	this->x = this->y = 0.0;
+	this->pause = false;
 	this->cooldown = COOLDOWN_MAX / 3.0;
 	this->audio.clear();
 	this->texture.clear();
@@ -98,22 +103,41 @@ void SceneGame::update(double ms) {
 	double delta;
 	double step;
 
-	this->cooldown -= ms;
-	if (this->cooldown <= 0) {
-		this->cooldown = COOLDOWN_MAX;
-		Mix_PlayChannel(-1, this->audio[SOUND_BLOOP], 0);
-	}
+	bool showGUI = this->pause;
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-	while (SDL_PollEvent(&e) != 0)
+	int wheel = 0;
+
+	while (SDL_PollEvent(&e))
 	{
+		ImGui_ImplSDL2_ProcessEvent(&e);
 		//User requests quit
 		if (e.type == SDL_QUIT)
 		{
 			this->quit = true;
 		}
-		//User presses a key
-		else if (e.type == SDL_KEYUP)
+		else if (e.type == SDL_WINDOWEVENT)
 		{
+			if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+			{
+				io.DisplaySize.x = static_cast<float>(e.window.data1);
+				io.DisplaySize.y = static_cast<float>(e.window.data2);
+			}
+		}
+		else if (e.type == SDL_MOUSEWHEEL)
+		{
+			wheel = e.wheel.y;
+		}
+		//User presses a key
+		if (e.type == SDL_KEYUP)
+		{
+			if (io.WantCaptureKeyboard) {
+				io.KeysDown[e.key.keysym.scancode] = false;
+				// std::cout << "Key Up: " << e.key.keysym.scancode << std::endl;
+			}
+			
 			//Select surfaces based on key press
 			switch (e.key.keysym.sym)
 			{
@@ -137,6 +161,10 @@ void SceneGame::update(double ms) {
 				this->quit = true;
 				break;
 
+			case SDLK_p:
+				this->pause = !this->pause;
+				break;
+
 			default:
 				std::cout << "[UP] Other Key " << e.key.keysym.sym << std::endl;
 				break;
@@ -144,6 +172,9 @@ void SceneGame::update(double ms) {
 		}
 		else if (e.type == SDL_KEYDOWN)
 		{
+			if (io.WantCaptureKeyboard) {
+				io.KeysDown[e.key.keysym.scancode] = true;
+			}
 			//Select surfaces based on key press
 			switch (e.key.keysym.sym)
 			{
@@ -192,7 +223,7 @@ void SceneGame::update(double ms) {
 					}
 				}
 				//Y axis motion
-				else if (e.jaxis.axis == 1) 
+				else if (e.jaxis.axis == 1)
 				{
 					//Below of dead zone
 					if (e.jaxis.value < -JOYSTICK_DEAD_ZONE)
@@ -215,7 +246,7 @@ void SceneGame::update(double ms) {
 		{
 			if (e.jbutton.which == 0)
 			{
-				std::cout << "Joystick button down. Button #" << (int) e.jbutton.button << std::endl;
+				std::cout << "Joystick button down. Button #" << (int)e.jbutton.button << std::endl;
 			}
 		}
 		else if (e.type == SDL_JOYBUTTONUP) {
@@ -225,39 +256,88 @@ void SceneGame::update(double ms) {
 					this->quit = true;
 				}
 				else {
-					std::cout << "Joystick button up. Button #" << (int) e.jbutton.button << std::endl;
+					std::cout << "Joystick button up. Button #" << (int)e.jbutton.button << std::endl;
 				}
 			}
 		}
 	}
 
-	step = (MOVE_SPEED * ms) / 1000.0;
+	int mouseX, mouseY;
+	const int buttons = SDL_GetMouseState(&mouseX, &mouseY);
+	// Setup low-level inputs (e.g. on Win32, GetKeyboardState(), or write to those fields from your Windows message loop handlers, etc.)
+
+	io.DeltaTime = std::max<float>(FRAME_MIN, (float) ms);
+	io.MousePos = ImVec2(static_cast<float>(mouseX), static_cast<float>(mouseY));
+	io.MouseDown[0] = buttons & SDL_BUTTON(SDL_BUTTON_LEFT);
+	io.MouseDown[1] = buttons & SDL_BUTTON(SDL_BUTTON_RIGHT);
+	io.MouseWheel = static_cast<float>(wheel);
+
+	SDL_Rect r;
 	SDL_Texture* test = this->texture[TEXTURE_TEST];
 	int w, h, winW, winH;
-	SDL_QueryTexture(test, NULL, NULL, &w, &h);
+	SDL_QueryTexture(test, NULL, NULL, &w, &h); 
 	SDL_GetWindowSize(this->window, &winW, &winH);
-	if (this->up) {
-		this->y = (double)std::max<double>(0.0, this->y - step);
+	
+
+	if (!showGUI) {
+		this->cooldown -= ms;
+		if (this->cooldown <= 0) {
+			this->cooldown = COOLDOWN_MAX;
+			Mix_PlayChannel(-1, this->audio[SOUND_BLOOP], 0);
+		}
+
+		step = (MOVE_SPEED * ms) / 1000.0;		
+				
+		if (this->up) {
+			this->y = (double)std::max<double>(0.0, this->y - step);
+		}
+		if (this->down) {
+			delta = (double)(winH - h - 1);
+			this->y = (double)std::min<double>(delta, this->y + step);
+		}
+		if (this->left) {
+			this->x = (double)std::max<double>(0.0, this->x - step);
+		}
+		if (this->right) {
+			delta = (double)(winW - w - 1);
+			this->x = (double)std::min<double>(delta, this->x + step);
+		}		
+	}	
+	
+	if (showGUI) {
+		// Draw a pause message box
+		ImGui::NewFrame();
+		ImGui::Begin("Pause");
+		ImGui::Text("Paused...");
+		if (ImGui::Button("OK")) {
+			this->pause = false;
+		}
+		ImGui::End();
+		ImGui::EndFrame();		
+		ImGui::Render();
 	}
-	if (this->down) {
-		delta = (double)(winH - h - 1);
-		this->y = (double)std::min<double>(delta, this->y + step);
-	}
-	if (this->left) {
-		this->x = (double)std::max<double>(0.0, this->x - step);
-	}
-	if (this->right) {
-		delta = (double)(winW - w - 1);
-		this->x = (double)std::min<double>(delta, this->x + step);
-	}
-	SDL_Rect r;
-	r.x = (int) this->x;
-	r.y = (int) this->y;
+
+	SDL_RenderClear(this->renderer);
+
+	SDL_Rect fillR;
+	fillR.x = 0;
+	fillR.y = 0;
+	fillR.w = winW;
+	fillR.h = winH;
+
+	
+	SDL_SetRenderDrawColor(this->renderer, 64, 64, 255,SDL_ALPHA_OPAQUE);
+	SDL_RenderFillRect(this->renderer, &fillR);
+	SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	//if (showGUI) ImGui::Render();
+	
+	//Apply the image
+	// SDL_RenderClear(this->renderer);
+	r.x = (int)this->x;
+	r.y = (int)this->y;
 	r.w = w;
 	r.h = h;
 
-	//Apply the image
-	SDL_RenderClear(this->renderer);
 	SDL_RenderCopy(this->renderer, test, NULL, &r);
 
 	// Write the fps
@@ -279,6 +359,15 @@ void SceneGame::update(double ms) {
 
 	SDL_FreeSurface(fpsSurface);
 	SDL_DestroyTexture(fpsTex);
+
+
+	if (showGUI) {
+		// Draw a pause message box
+		
+		// Rendering		
+		ImGuiSDL::Render(ImGui::GetDrawData());
+		
+	}
 
 	//Update the surface
 	SDL_RenderPresent(this->renderer);

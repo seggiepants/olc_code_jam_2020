@@ -1,6 +1,6 @@
 IDIR =../../SDL2-2.0.12/mingw/include
 CC=emcc
-CFLAGS = -O3 -s -I$(IDIR)
+CFLAGS = -s -I$(IDIR)
 
 ODIR=obj
 LDIR =../../SDL2-2.0.12/mingw/lib

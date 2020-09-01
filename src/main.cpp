@@ -4,9 +4,12 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mixer.h>
 #include <SDL2/SDL_ttf.h>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl.h"
 #include "main.h"
 #include "scene/game.h"
 #include "scene/menu.h"
+#include "utility.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -20,6 +23,7 @@ struct SDL_globals {
 	SDL_Window* window = NULL;
 	SDL_Renderer* renderer = NULL;
 	Scene* currentScene = NULL;
+	int state = STATE_MENU;
 #ifdef __EMSCRIPTEN__
 	Uint64 current = 0;
 	Uint64 previous = 0;
@@ -57,6 +61,41 @@ bool init()
 			SDL_RenderClear(globals.renderer);
 		}
 
+		// Dear ImGUI
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiSDL::Initialize(globals.renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
+		/*
+		SDL_Texture* texture = SDL_CreateTexture(globals.renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, 100, 100);
+		{
+			SDL_SetRenderTarget(globals.renderer, texture);
+			SDL_SetRenderDrawColor(globals.renderer, 255, 0, 255, 255);
+			SDL_RenderClear(globals.renderer);
+			SDL_SetRenderTarget(globals.renderer, nullptr);
+		}
+		*/
+		ImGuiIO& io = ImGui::GetIO(); 
+
+		//(void)io;
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+#ifdef __EMSCRIPTEN__
+		io.IniFilename = NULL;
+#endif
+
+		io.KeyMap[ImGuiKey_Insert] = SDL_SCANCODE_INSERT;
+		io.KeyMap[ImGuiKey_Delete] = SDL_SCANCODE_DELETE;
+		io.KeyMap[ImGuiKey_Backspace] = SDL_SCANCODE_BACKSPACE;
+		io.KeyMap[ImGuiKey_Space] = SDL_SCANCODE_SPACE;
+		io.KeyMap[ImGuiKey_Enter] = SDL_SCANCODE_RETURN;
+		io.KeyMap[ImGuiKey_Escape] = SDL_SCANCODE_ESCAPE;
+		io.KeyMap[ImGuiKey_A] = SDL_SCANCODE_A;
+
+		// Setup Dear ImGui style
+		ImGui::StyleColorsDark();
+		ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+		//ImGui::StyleColorsClassic();
 		/*
 		SDL_AudioSpec want, have;
 
@@ -100,7 +139,8 @@ bool init()
 
 void close()
 {
-	globals.currentScene->destroy();
+	if (globals.currentScene != NULL)
+		globals.currentScene->destroy();
 	
 	Mix_CloseAudio();
 	Mix_Quit();
@@ -111,6 +151,10 @@ void close()
 	std::cout << "Shutting down" << std::endl;
 #else
 	//Destroy window	
+	ImGuiSDL::Deinitialize();
+	ImGui_ImplSDL2_Shutdown();
+	ImGui::DestroyContext();
+
 	SDL_DestroyRenderer(globals.renderer);
 	globals.renderer = NULL;
 
@@ -123,6 +167,41 @@ void close()
 	
 }
 
+void NextScene() {
+	Scene* nextScene = NULL;
+	if (globals.currentScene != NULL) {
+		globals.currentScene->destroy();
+		delete globals.currentScene;
+		globals.currentScene = NULL;
+	}
+
+	if (globals.state == STATE_MENU) {
+		nextScene = (Scene*) new SceneMenu();
+	}
+	else if (globals.state == STATE_PLAY) {
+		nextScene = (Scene*) new SceneGame();
+	}
+	if (nextScene != NULL) {
+		nextScene->init(globals.window, globals.renderer);
+		if (!nextScene->running())
+		{
+			std::cout << "Failed to load!" << std::endl;
+			globals.state = STATE_EXIT;
+			delete nextScene;
+			globals.currentScene = NULL;
+}
+		else
+		{
+			globals.currentScene = nextScene;
+		}
+	}
+	else
+	{
+		globals.currentScene = nextScene;
+		globals.state = STATE_EXIT;
+	}
+}
+
 #ifdef __EMSCRIPTEN__
 void emscripten_update(void* param) {
 	globals.previous = globals.current;
@@ -130,9 +209,15 @@ void emscripten_update(void* param) {
 	Uint64 ticks = globals.current - globals.previous;
 	globals.ms = (double)((ticks * 1000.0) / SDL_GetPerformanceFrequency());
 
-	globals.currentScene->update(globals.ms);
-	if (!globals.currentScene->running()) {
+	if (globals.state == STATE_EXIT) {
 		emscripten_cancel_main_loop();
+	} else if (globals.currentScene != NULL)
+	{
+		globals.currentScene->update(globals.ms);
+		if (!globals.currentScene->running()) {
+			globals.state = globals.currentScene->getNextState();
+			NextScene();
+		}
 	}
 }
 #endif
@@ -148,37 +233,34 @@ int main(int argc, char* args[])
 	{
 		//Free resources and close SDL on exit
 		atexit(close);		
-		
-		globals.currentScene = (Scene*) (new SceneGame());
-		globals.currentScene->init(globals.window, globals.renderer);
-		//Load media
-		if (!globals.currentScene->running())
-		{
-			std::cout << "Failed to load!" << std::endl;
-		}
-		else
-		{
-			// While application is running
+
+		globals.state = STATE_MENU;
+		globals.currentScene = NULL;
+		NextScene();
+
 #ifndef __EMSCRIPTEN__
-			Uint64 current, previous;
-			double ms;
-			ms = 0.0;
-			current = SDL_GetPerformanceCounter();
-			previous = 0;
+		Uint64 current, previous;
+		double ms;
+		ms = 0.0;
+		current = SDL_GetPerformanceCounter();
+		previous = 0;
 #endif
-				
+
 #ifdef __EMSCRIPTEN__
-			emscripten_set_main_loop_arg(emscripten_update, (void*)NULL, -1, 1);
+		emscripten_set_main_loop_arg(emscripten_update, (void*)NULL, -1, 1);
 #else
-			while (globals.currentScene->running()) {
-				previous = current;
-				current = SDL_GetPerformanceCounter();
-				Uint64 ticks = current - previous;
-				double ms = (double)((ticks * 1000.0) / SDL_GetPerformanceFrequency());
-				globals.currentScene->update(ms);
+		while (globals.state != STATE_EXIT) {
+			previous = current;
+			current = SDL_GetPerformanceCounter();
+			Uint64 ticks = current - previous;
+			double ms = (double)((ticks * 1000.0) / SDL_GetPerformanceFrequency());
+			globals.currentScene->update(ms);
+			if (!globals.currentScene->running()) {
+				globals.state = globals.currentScene->getNextState();
+				NextScene();
 			}
-#endif
 		}
+#endif
 	}
 	return 0;
 }
