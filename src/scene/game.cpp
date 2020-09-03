@@ -4,19 +4,20 @@
 #include "../utility.h"
 
 const int MOVE_SPEED = 400; // pixels per second.
-const double COOLDOWN_MAX = 3000.0;
-
 const int FONT_DEFAULT = 0;
-
 const int SOUND_BLOOP = 0;
+const int TEXTURE_TANK = 0;
 
-const int TEXTURE_TEST = 0;
+const std::string PATH_BLOOP = "assets/sound/bloop.ogg";
+const std::string PATH_TANK = "assets/image/tank.png";
+const std::string PATH_TANK_BULLET = "assets/image/tank_bullet.png";
+const std::string PATH_FONT = "assets/font/NovaSquareBoldOblique.ttf";
+const int FONT_SIZE = 14;
 
 SceneGame::SceneGame() {
 	this->quit = false;
 	this->up = this->down = this->left = this->right = false;
 	this->x = this->y = 0.0;
-	this->cooldown = 0;
 	this->joystick = NULL;
 	this->pause = false;
 }
@@ -30,34 +31,19 @@ int SceneGame::getNextState() {
 }
 
 void SceneGame::loadMedia() {
-	Mix_Chunk* chunk = Mix_LoadWAV("assets/sound/bloop.ogg");
+	this->bloop = resource->GetAudio(PATH_BLOOP);
+	this->font = resource->GetFont(PATH_FONT, FONT_SIZE);
+	this->tank = resource->GetImage(this->renderer, PATH_TANK);
+	this->tankBullet = resource->GetImage(this->renderer, PATH_TANK_BULLET);
 
-	if (chunk == NULL) {
-		std::cout << "Failed to load sound. Error: \"" << SDL_GetError() << "\"" << std::endl;
+	if (this->bloop == NULL || this->font == NULL || this->tank == NULL)
 		this->quit = true;
-	}
-	this->audio[SOUND_BLOOP] = chunk;
-
-	SDL_Texture* texture = loadTexture(this->renderer, "assets/image/test.png");
-	if (texture == NULL)
-	{
-		std::cout << "Failed to load default image!" << std::endl;
-		this->quit = true;
-	}
-	this->texture[TEXTURE_TEST] = texture;
-
-	TTF_Font* font = TTF_OpenFont("assets/font/NovaSquareBoldOblique.ttf", 14);
-	if (font == NULL)
-	{
-		std::cout << "Failed to load font. Error: \"" << SDL_GetError() << "\"" << std::endl;
-		this->quit = true;
-	}
-	this->font[FONT_DEFAULT] = font;
 }
 
-void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer) {
+void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource) {
 	this->window = window;
 	this->renderer = renderer;
+	this->resource = resource;
 	this->joystick = NULL;
 	if (SDL_NumJoysticks() >= 1)
 	{
@@ -72,10 +58,6 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer) {
 	this->up = this->down = this->left = this->right = false;
 	this->x = this->y = 0.0;
 	this->pause = false;
-	this->cooldown = COOLDOWN_MAX / 3.0;
-	this->audio.clear();
-	this->texture.clear();
-	this->font.clear();
 	this->loadMedia();
 }
 
@@ -86,14 +68,6 @@ void SceneGame::destroy() {
 		SDL_JoystickClose(this->joystick);
 		this->joystick = NULL;
 	}
-
-	for (const auto &element : this->audio) {
-		Mix_FreeChunk(element.second);
-	}
-
-	for (const auto &element : this->texture) {
-		SDL_DestroyTexture(element.second);
-	}
 }
 
 void SceneGame::update(double ms) {
@@ -102,6 +76,9 @@ void SceneGame::update(double ms) {
 	SDL_Event e;
 	double delta;
 	double step;
+	SDL_Rect r;
+	int w, h, winW, winH;
+	int bulletW, bulletH;
 
 	bool showGUI = this->pause;
 	ImGuiIO& io = ImGui::GetIO();
@@ -159,6 +136,18 @@ void SceneGame::update(double ms) {
 
 			case SDLK_ESCAPE:
 				this->quit = true;
+				break;
+
+			case SDLK_SPACE:
+				if (this->bulletActive == false && !showGUI)
+				{
+					SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
+					SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
+					this->bulletX = this->x + ((w - bulletW) / 2); 
+					this->bulletY = this->y - bulletH - 1;
+					this->bulletActive = true;
+					Mix_PlayChannel(-1, this->bloop, 0);
+				}
 				break;
 
 			case SDLK_p:
@@ -272,20 +261,11 @@ void SceneGame::update(double ms) {
 	io.MouseDown[1] = buttons & SDL_BUTTON(SDL_BUTTON_RIGHT);
 	io.MouseWheel = static_cast<float>(wheel);
 
-	SDL_Rect r;
-	SDL_Texture* test = this->texture[TEXTURE_TEST];
-	int w, h, winW, winH;
-	SDL_QueryTexture(test, NULL, NULL, &w, &h); 
+	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h); 
 	SDL_GetWindowSize(this->window, &winW, &winH);
 	
 
 	if (!showGUI) {
-		this->cooldown -= ms;
-		if (this->cooldown <= 0) {
-			this->cooldown = COOLDOWN_MAX;
-			Mix_PlayChannel(-1, this->audio[SOUND_BLOOP], 0);
-		}
-
 		step = (MOVE_SPEED * ms) / 1000.0;		
 				
 		if (this->up) {
@@ -302,11 +282,21 @@ void SceneGame::update(double ms) {
 			delta = (double)(winW - w - 1);
 			this->x = (double)std::min<double>(delta, this->x + step);
 		}		
+
+		if (this->bulletActive) {
+			this->bulletY -= step;
+			SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
+			if (this->bulletY <= bulletH * -1) {
+				this->bulletActive = false;
+			}
+		}
 	}	
 	
 	if (showGUI) {
 		// Draw a pause message box
 		ImGui::NewFrame();
+		ImGui::SetNextWindowPos(ImVec2(winW / 3.0, winH / 3.0), ImGuiCond_::ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2(winW / 3.0, winH / 8.0), ImGuiCond_::ImGuiCond_Once);
 		ImGui::Begin("Pause");
 		ImGui::Text("Paused...");
 		if (ImGui::Button("OK")) {
@@ -333,18 +323,28 @@ void SceneGame::update(double ms) {
 	
 	//Apply the image
 	// SDL_RenderClear(this->renderer);
+
+	if (this->bulletActive) {
+		r.x = (int)this->bulletX;
+		r.y = (int)this->bulletY;
+		SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
+		r.w = bulletW;
+		r.h = bulletH;
+		SDL_RenderCopy(this->renderer, this->tankBullet, NULL, &r);
+	}
+
 	r.x = (int)this->x;
 	r.y = (int)this->y;
 	r.w = w;
 	r.h = h;
 
-	SDL_RenderCopy(this->renderer, test, NULL, &r);
+	SDL_RenderCopy(this->renderer, this->tank, NULL, &r);
 
 	// Write the fps
 	char buffer[50];
 	snprintf(buffer, 50, "fps: %3.2f", fps);
 	SDL_Color fg = { 255, 255, 255 };
-	SDL_Surface* fpsSurface = TTF_RenderText_Solid(this->font[FONT_DEFAULT], buffer, fg);
+	SDL_Surface* fpsSurface = TTF_RenderText_Solid(this->font, buffer, fg);
 	SDL_Texture* fpsTex = SDL_CreateTextureFromSurface(this->renderer, fpsSurface);
 	int width;
 	int height;

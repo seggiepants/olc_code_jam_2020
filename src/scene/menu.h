@@ -13,7 +13,7 @@ class SceneMenu : Scene
 public:
 	SceneMenu();
 	~SceneMenu();
-	void init(SDL_Window* window, SDL_Renderer* renderer);
+	void init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource);
 	void destroy();
 	void update(double ms);
 	void loadMedia();
@@ -22,7 +22,8 @@ public:
 private:
 	SDL_Window* window;
 	SDL_Renderer* renderer;
+	ResourceManager* resource;
 	bool quit;
 	int nextState;
-	std::unordered_map<int, SDL_Texture*> texture;
+	SDL_Texture* background;
 };

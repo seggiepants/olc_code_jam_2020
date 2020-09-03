@@ -3,7 +3,7 @@
 #include "menu.h"
 #include "../utility.h"
 
-const int TEXTURE_BG = 0;
+const std::string PATH_BACKGROUND = "assets/image/title.png";
 
 SceneMenu::SceneMenu() {
 	this->quit = false;
@@ -15,21 +15,17 @@ SceneMenu::~SceneMenu() {
 }
 
 void SceneMenu::loadMedia() {
-
-	SDL_Texture* texture = loadTexture(this->renderer, "assets/image/title.png");
-	if (texture == NULL)
-	{
-		std::cout << "Failed to load default image!" << std::endl;
+	this->background = this->resource->GetImage(this->renderer, PATH_BACKGROUND);
+	if (this->background == NULL)
 		this->quit = true;
-	}
-	this->texture[TEXTURE_BG] = texture;
 }
 
-void SceneMenu::init(SDL_Window* window, SDL_Renderer* renderer) {
+void SceneMenu::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource) {
 	this->window = window;
 	this->renderer = renderer;
+	this->resource = resource;
 	this->quit = false;
-	this->texture.clear();
+	this->background = NULL;
 	this->loadMedia();
 	this->nextState = STATE_EXIT;
 }
@@ -39,10 +35,7 @@ int SceneMenu::getNextState() {
 }
 
 void SceneMenu::destroy() {
-
-	for (const auto &element : this->texture) {
-		SDL_DestroyTexture(element.second);
-	}
+	// do nothing
 }
 
 void SceneMenu::update(double ms) {
@@ -100,13 +93,17 @@ void SceneMenu::update(double ms) {
 				io.KeysDown[e.key.keysym.scancode] = true;
 			}
 			//Select surfaces based on key press
+			/*
 			switch (e.key.keysym.sym)
 			{
 
 			default:
+			*/
 				std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
+			/*
 				break;
 			}
+			*/
 		}
 	}
 
@@ -121,16 +118,17 @@ void SceneMenu::update(double ms) {
 	io.MouseWheel = static_cast<float>(wheel);
 
 	SDL_Rect r;
-	SDL_Texture* bg = this->texture[TEXTURE_BG];
 	int w, h, winW, winH;
-	SDL_QueryTexture(bg, NULL, NULL, &w, &h);
+	SDL_QueryTexture(this->background, NULL, NULL, &w, &h);
 	SDL_GetWindowSize(this->window, &winW, &winH);
 
 	SDL_GetWindowSize(this->window, &winW, &winH);
 	io.DisplaySize = ImVec2((float)w, (float)h);
 	
 	ImGui::NewFrame();
-	ImGui::Begin("OLC Game Jam 2020");
+	ImGui::SetNextWindowPos(ImVec2(winW / 4.0, winH / 4.0), ImGuiCond_::ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(winW / 2.0, winH / 2.0), ImGuiCond_::ImGuiCond_Once);
+	ImGui::Begin("The Great Machine Armada");
 	// ImGui::Text("OLC Game Jam 2020");
 	if (ImGui::Button("Play")) {
 		this->nextState = STATE_PLAY;
@@ -146,6 +144,7 @@ void SceneMenu::update(double ms) {
 
 	SDL_RenderClear(this->renderer);
 
+	/*
 	SDL_Rect fillR;
 	fillR.x = 0;
 	fillR.y = 0;
@@ -154,13 +153,13 @@ void SceneMenu::update(double ms) {
 
 
 	SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-
+	*/
 	r.x = 0;
 	r.y = 0;
 	r.w = winW;
 	r.h = winH;
 
-	SDL_RenderCopy(this->renderer, bg, NULL, &r);
+	SDL_RenderCopy(this->renderer, this->background, NULL, &r);
 
 	// Rendering		
 	ImGuiSDL::Render(ImGui::GetDrawData());

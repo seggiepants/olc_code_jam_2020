@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include "../resource_manager.h"
 
 #pragma once
 
@@ -9,7 +10,7 @@ class Scene {
 public:
 	Scene() {};
 	virtual ~Scene() {};
-	virtual void init(SDL_Window* window, SDL_Renderer* renderer) = 0;
+	virtual void init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource) = 0;
 	virtual void destroy() = 0;
 	virtual void update(double ms) = 0;
 	virtual bool running() = 0;

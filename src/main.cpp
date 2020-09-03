@@ -9,6 +9,7 @@
 #include "main.h"
 #include "scene/game.h"
 #include "scene/menu.h"
+#include "resource_manager.h"
 #include "utility.h"
 
 #ifdef __EMSCRIPTEN__
@@ -24,6 +25,7 @@ struct SDL_globals {
 	SDL_Renderer* renderer = NULL;
 	Scene* currentScene = NULL;
 	int state = STATE_MENU;
+	ResourceManager* resource = NULL;
 #ifdef __EMSCRIPTEN__
 	Uint64 current = 0;
 	Uint64 previous = 0;
@@ -60,6 +62,8 @@ bool init()
 			/* Clear the entire screen to our selected color. */
 			SDL_RenderClear(globals.renderer);
 		}
+
+		globals.resource = new ResourceManager();
 
 		// Dear ImGUI
 		IMGUI_CHECKVERSION();
@@ -142,6 +146,9 @@ void close()
 	if (globals.currentScene != NULL)
 		globals.currentScene->destroy();
 	
+	delete globals.resource;
+	globals.resource = NULL;
+
 	Mix_CloseAudio();
 	Mix_Quit();
 
@@ -182,7 +189,7 @@ void NextScene() {
 		nextScene = (Scene*) new SceneGame();
 	}
 	if (nextScene != NULL) {
-		nextScene->init(globals.window, globals.renderer);
+		nextScene->init(globals.window, globals.renderer, globals.resource);
 		if (!nextScene->running())
 		{
 			std::cout << "Failed to load!" << std::endl;
