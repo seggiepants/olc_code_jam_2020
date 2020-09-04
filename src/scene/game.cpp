@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "game.h"
 #include "../utility.h"
+#include "../sprite/bullet.h"
 
 const int MOVE_SPEED = 400; // pixels per second.
 const int FONT_DEFAULT = 0;
@@ -10,7 +11,6 @@ const int TEXTURE_TANK = 0;
 
 const std::string PATH_BLOOP = "assets/sound/bloop.ogg";
 const std::string PATH_TANK = "assets/image/tank.png";
-const std::string PATH_TANK_BULLET = "assets/image/tank_bullet.png";
 const std::string PATH_FONT = "assets/font/NovaSquareBoldOblique.ttf";
 const int FONT_SIZE = 14;
 
@@ -34,7 +34,6 @@ void SceneGame::loadMedia() {
 	this->bloop = resource->GetAudio(PATH_BLOOP);
 	this->font = resource->GetFont(PATH_FONT, FONT_SIZE);
 	this->tank = resource->GetImage(this->renderer, PATH_TANK);
-	this->tankBullet = resource->GetImage(this->renderer, PATH_TANK_BULLET);
 
 	if (this->bloop == NULL || this->font == NULL || this->tank == NULL)
 		this->quit = true;
@@ -59,10 +58,11 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager
 	this->x = this->y = 0.0;
 	this->pause = false;
 	this->loadMedia();
+	this->tankBullet.init(this->window, this->renderer, this->resource);
 }
 
 void SceneGame::destroy() {
-
+	this->tankBullet.destroy();
 	//Close game controller
 	if (this->joystick != NULL) {
 		SDL_JoystickClose(this->joystick);
@@ -78,7 +78,6 @@ void SceneGame::update(double ms) {
 	double step;
 	SDL_Rect r;
 	int w, h, winW, winH;
-	int bulletW, bulletH;
 
 	bool showGUI = this->pause;
 	ImGuiIO& io = ImGui::GetIO();
@@ -139,13 +138,17 @@ void SceneGame::update(double ms) {
 				break;
 
 			case SDLK_SPACE:
-				if (this->bulletActive == false && !showGUI)
+				if (!showGUI)
 				{
+					Bullet* bullet = new Bullet();
+					bullet->init(this->window, this->renderer, this->resource);
+					bullet->setDirection(-1);
+					int bulletX, bulletY, bulletW, bulletH, w, h;
+					bullet->setPosition(0.0, 0.0);
+					bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
 					SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
-					SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
-					this->bulletX = this->x + ((w - bulletW) / 2); 
-					this->bulletY = this->y - bulletH - 1;
-					this->bulletActive = true;
+					bullet->setPosition(this->x + ((w - bulletW) / 2), this->y - bulletH - 1);
+					this->tankBullet.add((Sprite*)bullet);
 					Mix_PlayChannel(-1, this->bloop, 0);
 				}
 				break;
@@ -282,21 +285,15 @@ void SceneGame::update(double ms) {
 			delta = (double)(winW - w - 1);
 			this->x = (double)std::min<double>(delta, this->x + step);
 		}		
-
-		if (this->bulletActive) {
-			this->bulletY -= step;
-			SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
-			if (this->bulletY <= bulletH * -1) {
-				this->bulletActive = false;
-			}
-		}
+		this->tankBullet.removeInactive();		
+		this->tankBullet.update(ms);
 	}	
 	
 	if (showGUI) {
 		// Draw a pause message box
 		ImGui::NewFrame();
-		ImGui::SetNextWindowPos(ImVec2(winW / 3.0, winH / 3.0), ImGuiCond_::ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2(winW / 3.0, winH / 8.0), ImGuiCond_::ImGuiCond_Once);
+		ImGui::SetNextWindowPos(ImVec2((float)(winW / 3.0), (float)(winH / 3.0)), ImGuiCond_::ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2((float)(winW / 3.0), (float)(winH / 8.0)), ImGuiCond_::ImGuiCond_Once);
 		ImGui::Begin("Pause");
 		ImGui::Text("Paused...");
 		if (ImGui::Button("OK")) {
@@ -324,14 +321,7 @@ void SceneGame::update(double ms) {
 	//Apply the image
 	// SDL_RenderClear(this->renderer);
 
-	if (this->bulletActive) {
-		r.x = (int)this->bulletX;
-		r.y = (int)this->bulletY;
-		SDL_QueryTexture(this->tankBullet, NULL, NULL, &bulletW, &bulletH);
-		r.w = bulletW;
-		r.h = bulletH;
-		SDL_RenderCopy(this->renderer, this->tankBullet, NULL, &r);
-	}
+	this->tankBullet.draw();
 
 	r.x = (int)this->x;
 	r.y = (int)this->y;

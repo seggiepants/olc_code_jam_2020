@@ -3,9 +3,9 @@
 #include <SDL2/SDL_mixer.h>
 #include <SDL2/SDL_ttf.h>
 #include <unordered_map>
-#include "../imgui/imgui.h"
-#include "../imgui/imgui_sdl.h"
-#include "../imgui/imgui_impl_sdl.h"
+#include "../3rd_party/imgui/imgui.h"
+#include "../3rd_party/imgui/imgui_sdl.h"
+#include "../3rd_party/imgui/imgui_impl_sdl.h"
 #include "scene.h"
 
 class SceneMenu : Scene

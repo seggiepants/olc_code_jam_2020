@@ -35,5 +35,5 @@
 *.vcxpro*
 olc_code_jam_2020/Debug
 olc_code_jam_2020/x64
-src/imgui/imgui_demo.cpp
+src/3rd_party/imgui/imgui_demo.cpp
 /imgui.ini
