@@ -21,6 +21,7 @@ public:
 	bool running();
 	int getNextState();
 private:
+	void spawnTankBullet();
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Joystick* joystick;

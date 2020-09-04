@@ -140,16 +140,7 @@ void SceneGame::update(double ms) {
 			case SDLK_SPACE:
 				if (!showGUI)
 				{
-					Bullet* bullet = new Bullet();
-					bullet->init(this->window, this->renderer, this->resource);
-					bullet->setDirection(-1);
-					int bulletX, bulletY, bulletW, bulletH, w, h;
-					bullet->setPosition(0.0, 0.0);
-					bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
-					SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
-					bullet->setPosition(this->x + ((w - bulletW) / 2), this->y - bulletH - 1);
-					this->tankBullet.add((Sprite*)bullet);
-					Mix_PlayChannel(-1, this->bloop, 0);
+					this->spawnTankBullet();
 				}
 				break;
 
@@ -244,7 +235,10 @@ void SceneGame::update(double ms) {
 		else if (e.type == SDL_JOYBUTTONUP) {
 			if (e.jbutton.which == 0)
 			{
-				if (e.jbutton.button == 1) {
+				if (e.jbutton.button == 0) {
+					this->spawnTankBullet();
+				}
+				else if (e.jbutton.button == 1) {
 					this->quit = true;
 				}
 				else {
@@ -365,4 +359,18 @@ void SceneGame::update(double ms) {
 
 bool SceneGame::running() {
 	return !this->quit;
+}
+
+void SceneGame::spawnTankBullet()
+{
+	Bullet* bullet = new Bullet();
+	bullet->init(this->window, this->renderer, this->resource);
+	bullet->setDirection(-1);
+	int bulletX, bulletY, bulletW, bulletH, w, h;
+	bullet->setPosition(0.0, 0.0);
+	bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
+	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
+	bullet->setPosition(this->x + ((w - bulletW) / 2), this->y - bulletH - 1);
+	this->tankBullet.add((Sprite*)bullet);
+	Mix_PlayChannel(-1, this->bloop, 0);
 }
