@@ -19,13 +19,7 @@ public:
 	void setDirection(int direction);
 	void setPosition(double x, double y);
 	void getHitBox(int* x, int* y, int* w, int* h) ;
-	bool collisionDetect(Sprite* other);
 	void hit();
-	bool getActive();
-	void setActive(bool value);
-	bool getVisible();
-	void setVisible(bool value);
-
 private:
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -33,7 +27,6 @@ private:
 	SDL_Texture *image;
 	int direction;
 	double x, y;
-	bool active, visible;
 };
 
 #endif

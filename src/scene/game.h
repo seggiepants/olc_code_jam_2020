@@ -15,12 +15,14 @@ public:
 	SceneGame();
 	~SceneGame();
 	void init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource);
+	void initShields(int y); 
 	void destroy();
 	void update(double ms);
 	void loadMedia();	
 	bool running();
 	int getNextState();
 private:
+	void drawFPS(double fps, int winW, int winH);
 	void spawnTankBullet();
 	SDL_Window* window;
 	SDL_Renderer* renderer;
@@ -38,4 +40,5 @@ private:
 	bool quit;
 	bool pause;
 	SpriteGroup tankBullet;
+	SpriteGroup shield;
 };

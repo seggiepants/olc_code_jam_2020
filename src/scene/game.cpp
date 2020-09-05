@@ -3,6 +3,7 @@
 #include "game.h"
 #include "../utility.h"
 #include "../sprite/bullet.h"
+#include "../sprite/shield.h"
 
 const int MOVE_SPEED = 400; // pixels per second.
 const int FONT_DEFAULT = 0;
@@ -59,10 +60,19 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager
 	this->pause = false;
 	this->loadMedia();
 	this->tankBullet.init(this->window, this->renderer, this->resource);
+	this->shield.init(this->window, this->renderer, this->resource);
+	int winW, winH;
+	SDL_GetWindowSize(this->window, &winW, &winH);
+	int w, h;
+	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
+	this->initShields(winH - (2.5 * h));
+	this->x = (winW - w) / 2;
+	this->y = winH - (1.5 * h);
 }
 
 void SceneGame::destroy() {
 	this->tankBullet.destroy();
+	this->shield.destroy();
 	//Close game controller
 	if (this->joystick != NULL) {
 		SDL_JoystickClose(this->joystick);
@@ -78,7 +88,6 @@ void SceneGame::update(double ms) {
 	double step;
 	SDL_Rect r;
 	int w, h, winW, winH;
-
 	bool showGUI = this->pause;
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
@@ -149,7 +158,7 @@ void SceneGame::update(double ms) {
 				break;
 
 			default:
-				std::cout << "[UP] Other Key " << e.key.keysym.sym << std::endl;
+				//std::cout << "[UP] Other Key " << e.key.keysym.sym << std::endl;
 				break;
 			}
 		}
@@ -178,7 +187,7 @@ void SceneGame::update(double ms) {
 				break;
 
 			default:
-				std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
+				// std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
 				break;
 			}
 		}
@@ -229,7 +238,7 @@ void SceneGame::update(double ms) {
 		{
 			if (e.jbutton.which == 0)
 			{
-				std::cout << "Joystick button down. Button #" << (int)e.jbutton.button << std::endl;
+				//std::cout << "Joystick button down. Button #" << (int)e.jbutton.button << std::endl;
 			}
 		}
 		else if (e.type == SDL_JOYBUTTONUP) {
@@ -242,7 +251,7 @@ void SceneGame::update(double ms) {
 					this->quit = true;
 				}
 				else {
-					std::cout << "Joystick button up. Button #" << (int)e.jbutton.button << std::endl;
+					//std::cout << "Joystick button up. Button #" << (int)e.jbutton.button << std::endl;
 				}
 			}
 		}
@@ -279,8 +288,11 @@ void SceneGame::update(double ms) {
 			delta = (double)(winW - w - 1);
 			this->x = (double)std::min<double>(delta, this->x + step);
 		}		
-		this->tankBullet.removeInactive();		
+		this->tankBullet.removeInactive();	
 		this->tankBullet.update(ms);
+		this->shield.removeInactive();
+		this->shield.update(ms);
+		this->shield.collisionDetect(&this->tankBullet);
 	}	
 	
 	if (showGUI) {
@@ -306,16 +318,14 @@ void SceneGame::update(double ms) {
 	fillR.w = winW;
 	fillR.h = winH;
 
-	
-	SDL_SetRenderDrawColor(this->renderer, 64, 64, 255,SDL_ALPHA_OPAQUE);
+
+	SDL_SetRenderDrawColor(this->renderer, 64, 64, 255, SDL_ALPHA_OPAQUE);
 	SDL_RenderFillRect(this->renderer, &fillR);
 	SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	//if (showGUI) ImGui::Render();
-	
+
 	//Apply the image
 	// SDL_RenderClear(this->renderer);
-
-	this->tankBullet.draw();
 
 	r.x = (int)this->x;
 	r.y = (int)this->y;
@@ -324,37 +334,21 @@ void SceneGame::update(double ms) {
 
 	SDL_RenderCopy(this->renderer, this->tank, NULL, &r);
 
-	// Write the fps
-	char buffer[50];
-	snprintf(buffer, 50, "fps: %3.2f", fps);
-	SDL_Color fg = { 255, 255, 255 };
-	SDL_Surface* fpsSurface = TTF_RenderText_Solid(this->font, buffer, fg);
-	SDL_Texture* fpsTex = SDL_CreateTextureFromSurface(this->renderer, fpsSurface);
-	int width;
-	int height;
-	SDL_QueryTexture(fpsTex, NULL, NULL, &width, &height);
-	SDL_Rect fpsRect;
-	fpsRect.x = winW - width - 1;
-	fpsRect.y = 0;
-	fpsRect.w = width;
-	fpsRect.h = height;
-	SDL_RenderCopy(this->renderer, fpsTex, NULL, &fpsRect);
-	// std::cout << "Rect x: " << fpsRect.x << " y: " << fpsRect.y << " w: " << fpsRect.w << " h: " << fpsRect.h << std::endl;
-
-	SDL_FreeSurface(fpsSurface);
-	SDL_DestroyTexture(fpsTex);
-
+	this->shield.draw();
+	this->tankBullet.draw();
+	
+	this->drawFPS(fps, winW, winH);
 
 	if (showGUI) {
 		// Draw a pause message box
-		
+
 		// Rendering		
 		ImGuiSDL::Render(ImGui::GetDrawData());
-		
+
 	}
 
 	//Update the surface
-	SDL_RenderPresent(this->renderer);
+	SDL_RenderPresent(this->renderer);	
 }
 
 bool SceneGame::running() {
@@ -373,4 +367,82 @@ void SceneGame::spawnTankBullet()
 	bullet->setPosition(this->x + ((w - bulletW) / 2), this->y - bulletH - 1);
 	this->tankBullet.add((Sprite*)bullet);
 	Mix_PlayChannel(-1, this->bloop, 0);
+}
+
+void SceneGame::initShields(int y)
+{
+	const int NUM_SHIELDS = 4;
+	bool skip;
+	int x, temp, iStep = 0, jStep = 0;
+	int corner_w, corner_h;
+	Shield* chunk;
+	double x1, y1;
+
+	int winW, winH;
+	SDL_GetWindowSize(this->window, &winW, &winH);
+
+	int shield_step = winW / (4 * NUM_SHIELDS);
+	int shield_w = shield_step * 2;
+	int shield_h = shield_step;
+	corner_w = (shield_w / 4);
+	corner_h = (shield_h / 4);
+	chunk = new Shield();
+	chunk->init(this->window, this->renderer, this->resource);
+	chunk->getHitBox(&x, &temp, &iStep, &jStep);
+	delete chunk;
+	x = shield_step;
+	double slope = ((double)corner_h / (double)corner_w);
+
+	for (int k = 0; k < NUM_SHIELDS; k++)
+	{
+		for (int j = 0; j < shield_h; j += jStep)
+		{
+			y1 = (double)j + (double)(jStep / 2.0);
+			for (int i = 0; i < shield_w; i += iStep)
+			{
+				x1 = (double)i + (double)(iStep / 2.0);
+				skip = false;
+				if ((i <= corner_w) && (j <= corner_h) && (((slope * x1) - corner_h)  * -1 >= y1)) {
+					skip = true;
+				}
+				else if ((i >= shield_w - corner_w) && (j <= corner_h) && ((slope * (shield_w - x1)) - corner_h) * -1 >= y1) {
+					skip = true;
+				}
+				else if ((i >= corner_w) && (i <= (shield_w - corner_w)) && (j >= (shield_h - corner_h))) {
+					skip = true;
+				}
+
+				if (!skip)
+				{
+					chunk = new Shield();
+					chunk->init(this->window, this->renderer, this->resource);
+					chunk->setPosition((double)(x + i), (double)(y + j));
+					this->shield.add((Sprite*)chunk);
+				}
+			}
+		}
+		x += (shield_step * 4);
+	}
+}
+
+void SceneGame::drawFPS(double fps, int winW, int winH)
+{
+	// Write the fps
+	char buffer[50];
+	snprintf(buffer, 50, "fps: %3.2f", fps);	
+	SDL_Color fg = { 255, 255, 255 };
+	SDL_Surface* fpsSurface = TTF_RenderText_Solid(this->font, buffer, fg);	
+	SDL_Texture* fpsTex = SDL_CreateTextureFromSurface(this->renderer, fpsSurface);	
+	int width;
+	int height;
+	SDL_QueryTexture(fpsTex, NULL, NULL, &width, &height);
+	SDL_Rect fpsRect;
+	fpsRect.x = winW - width - 1;
+	fpsRect.y = 0;
+	fpsRect.w = width;
+	fpsRect.h = height;
+	SDL_RenderCopy(this->renderer, fpsTex, NULL, &fpsRect);	
+
+	SDL_FreeSurface(fpsSurface);
+	SDL_DestroyTexture(fpsTex);
 }

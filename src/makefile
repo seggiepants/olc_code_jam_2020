@@ -9,7 +9,7 @@ LIBS=-s USE_SDL=2 -s USE_SDL_IMAGE=2 -s SDL2_IMAGE_FORMATS='["bmp","png"]' -s US
 
 SOURCES = main.cpp resource_manager.cpp utility.cpp
 SOURCES += ./scene/game.cpp ./scene/menu.cpp
-SOURCES += ./sprite/sprite_group.cpp ./sprite/bullet.cpp
+SOURCES += ./sprite/sprite_group.cpp ./sprite/bullet.cpp ./sprite/shield.cpp
 SOURCES += ./3rd_party/imgui/imgui_impl_sdl.cpp ./3rd_party/imgui/imgui_sdl.cpp 
 SOURCES += ./3rd_party/imgui/imgui.cpp ./3rd_party/imgui/imgui_draw.cpp ./3rd_party/imgui/imgui_widgets.cpp
 OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
@@ -28,7 +28,7 @@ $(ODIR)/%.o: ./sprite/%.cpp
 $(ODIR)/%.o: ./scene/%.cpp 
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-olc_code_jam_2020: $(OBJ)
+great_machine_armada: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) -o ../html/$@.html $(LIBS) 
 
 .PHONY: clean

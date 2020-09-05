@@ -8,19 +8,43 @@
 class Sprite
 {
 public:
-	Sprite() {};
+	Sprite() {
+		this->active = true;
+		this->visible = true;
+	};
 	virtual ~Sprite() {};
 	virtual void init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager* resource) = 0;	
 	virtual void destroy() = 0;
 	virtual void draw() = 0;
 	virtual void update(double ms) = 0;
 	virtual void getHitBox(int* x, int* y, int* w, int* h) = 0;
-	virtual bool collisionDetect(Sprite* other) = 0;
+	bool collisionDetect(Sprite* other)
+	{
+		SDL_Rect src, dest;
+		this->getHitBox(&src.x, &src.y, &src.w, &src.h);
+		other->getHitBox(&dest.x, &dest.y, &dest.w, &dest.h);
+		return SDL_HasIntersection(&src, &dest) == SDL_TRUE;
+	};
 	virtual void hit() = 0;
-	virtual bool getActive() = 0;
-	virtual void setActive(bool value) = 0;
-	virtual bool getVisible() = 0;
-	virtual void setVisible(bool value) = 0;
+	bool getActive() 
+	{ 
+		return this->active; 
+	};
+	void setActive(bool value) 
+	{
+		this->active = value;
+	};
+	bool getVisible()
+	{
+		return this->visible;
+	};
+	void setVisible(bool value)
+	{
+		this->visible = value;
+	};
+protected:
+	bool active;
+	bool visible;
 };
 
 #endif

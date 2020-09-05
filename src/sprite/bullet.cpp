@@ -8,10 +8,8 @@ const double BULLET_SPEED = 300.0;
 const std::string PATH_BULLET_UP = "assets/image/tank_bullet.png";
 const std::string PATH_BULLET_DOWN = "assets/image/laser.png";
 
-Bullet::Bullet() 
+Bullet::Bullet() : Sprite()
 {
-	this->active = true;
-	this->visible = true;
 	this->window = NULL;
 	this->renderer = NULL;
 	this->resource = NULL;
@@ -108,36 +106,7 @@ void Bullet::getHitBox(int* x, int* y, int* w, int* h)
 	*h = height;
 }
 
-bool Bullet::collisionDetect(Sprite* other)
-{
-	SDL_Rect src, dest;
-	this->getHitBox(&src.x, &src.y, &src.w, &src.h);
-	other->getHitBox(&dest.x, &dest.y, &dest.w, &dest.h);
-	return SDL_HasIntersection(&src, &dest) == SDL_TRUE;
-}
-
 void Bullet::hit()
 {
 	this->setActive(false);
 }
-
-bool Bullet::getActive()
-{
-	return this->active;
-}
-
-void Bullet::setActive(bool value)
-{
-	this->active = value;
-}
-
-bool Bullet::getVisible()
-{
-	return this->visible;
-}
-
-void Bullet::setVisible(bool value)
-{
-	this->visible = value;
-}
-

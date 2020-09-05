@@ -1,11 +1,12 @@
 #include "sprite_group.h"
+#include <iostream>
 
 SpriteGroup::SpriteGroup()
 {
 	this->window = NULL;
 	this->renderer = NULL;
 	this->resource = NULL;
-	this->sprites.clear();
+	this->destroy();
 }
 
 SpriteGroup::~SpriteGroup()
@@ -23,18 +24,24 @@ void SpriteGroup::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManag
 
 void SpriteGroup::destroy()
 {
-	for (const auto &element : this->sprites) {
-		delete element;
+	if (this->sprites.size() > 0)
+	{
+		for (const auto &element : this->sprites) {
+			delete element;
+		}
+		this->sprites.clear();
 	}
-	this->sprites.clear();
 }
 
 void SpriteGroup::draw()
 {
-	for (const auto &element : this->sprites) {
-		if (element->getActive() && element->getVisible())
-		{
-			element->draw();
+	if (this->sprites.size() > 0)
+	{
+		for (const auto &element : this->sprites) {
+			if (element->getActive() && element->getVisible())
+			{
+				element->draw();
+			}
 		}
 	}
 }
@@ -67,7 +74,7 @@ Sprite* SpriteGroup::operator[](int index)
 
 int SpriteGroup::length()
 {
-	return this->sprites.size();
+	return (int) this->sprites.size();
 }
 
 bool SpriteGroup::collisionDetect(SpriteGroup* other)
@@ -80,7 +87,7 @@ bool SpriteGroup::collisionDetect(SpriteGroup* other)
 	{
 		i = 0;
 		hit = false;
-		current = this->sprites[i];
+		current = this->sprites[j];
 		while (i < other->length() && hit == false)
 		{
 			if (current->collisionDetect((*other)[i]))
@@ -89,6 +96,7 @@ bool SpriteGroup::collisionDetect(SpriteGroup* other)
 				hit = true;
 				current->hit();
 				(*other)[i]->hit();
+				break;
 			}
 			else
 			{
