@@ -6,7 +6,7 @@
 #include "sprite.h"
 #include "../resource_manager.h"
 
-class Bullet : Sprite
+class Bullet : public Sprite
 {
 public:
 	Bullet();

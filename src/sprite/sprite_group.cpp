@@ -63,7 +63,7 @@ void SpriteGroup::add(Sprite* item)
 
 Sprite* SpriteGroup::operator[](int index)
 {
-	if ((index >= 0) && (index < this->sprites.size())) {
+	if ((index >= 0) && (index < (int)this->sprites.size())) {
 		return this->sprites[index];
 	} 
 	else
@@ -77,13 +77,13 @@ int SpriteGroup::length()
 	return (int) this->sprites.size();
 }
 
-bool SpriteGroup::collisionDetect(SpriteGroup* other)
+bool SpriteGroup::collisionDetect(SpriteGroup* other, bool hitOther = true)
 {
 	int i, j;
 	Sprite* current;
 	bool hit, ret;
 	ret = false;
-	for (j = 0; j < this->sprites.size(); j++)
+	for (j = 0; j < (int) this->sprites.size(); j++)
 	{
 		i = 0;
 		hit = false;
@@ -95,7 +95,8 @@ bool SpriteGroup::collisionDetect(SpriteGroup* other)
 				ret = true;
 				hit = true;
 				current->hit();
-				(*other)[i]->hit();
+				if (hitOther)
+					(*other)[i]->hit();
 				break;
 			}
 			else

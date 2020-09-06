@@ -77,13 +77,13 @@ void SceneMenu::update(double ms) {
 			//Select surfaces based on key press
 			switch (e.key.keysym.sym)
 			{
-
+#ifndef __EMSCRIPTEN__
 			case SDLK_ESCAPE:
 				this->quit = true;
 				break;
-
+#endif
 			default:
-				std::cout << "[UP] Other Key " << e.key.keysym.sym << std::endl;
+				// std::cout << "[UP] Other Key " << e.key.keysym.sym << std::endl;
 				break;
 			}
 		}
@@ -99,7 +99,7 @@ void SceneMenu::update(double ms) {
 
 			default:
 			*/
-				std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
+				// std::cout << "[DOWN] Other Key " << e.key.keysym.sym << std::endl;
 			/*
 				break;
 			}
@@ -126,18 +126,20 @@ void SceneMenu::update(double ms) {
 	io.DisplaySize = ImVec2((float)w, (float)h);
 	
 	ImGui::NewFrame();
-	ImGui::SetNextWindowPos(ImVec2(winW / 4.0, winH / 4.0), ImGuiCond_::ImGuiCond_Once);
-	ImGui::SetNextWindowSize(ImVec2(winW / 2.0, winH / 2.0), ImGuiCond_::ImGuiCond_Once);
+	ImGui::SetNextWindowPos(ImVec2((float)(winW / 4.0), (float)(winH / 4.0)), ImGuiCond_::ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2((float)(winW / 2.0), (float)(winH / 2.0)), ImGuiCond_::ImGuiCond_Once);
 	ImGui::Begin("The Great Machine Armada");
 	// ImGui::Text("OLC Game Jam 2020");
 	if (ImGui::Button("Play")) {
 		this->nextState = STATE_PLAY;
 		this->quit = true;
 	}
+#ifndef __EMSCRIPTEN__
 	if (ImGui::Button("Exit")) {
 		this->nextState = STATE_EXIT;
 		this->quit = true;
 	}
+#endif
 	ImGui::End();
 	ImGui::EndFrame();
 	ImGui::Render();

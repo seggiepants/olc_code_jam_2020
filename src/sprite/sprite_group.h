@@ -19,7 +19,7 @@ public:
 	void removeInactive();
 	Sprite* operator[](int index);
 	int length();
-	bool collisionDetect(SpriteGroup* other);
+	bool collisionDetect(SpriteGroup* other, bool hitOther);
 private:
 	std::vector<Sprite*> sprites;
 	SDL_Window* window;

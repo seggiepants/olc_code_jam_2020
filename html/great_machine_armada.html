@@ -1,0 +1,66 @@
+<html>
+    <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style>
+    canvas.emscripten {
+        border: 0px none;
+        margin-left:auto;
+        margin-right:auto;
+        display:block;
+		width: 800px;
+		height: 600px;
+    }
+
+    #loadingDiv {
+        text-align: center;
+    }
+	
+	#controls {
+		background-color: palegoldenrod;
+		margin: 1rem;
+		padding: 1rem;
+	}
+</style>
+    </head>
+
+    <body>
+      <div id="loadingDiv">The Great Machine Armada is loading...</div>
+      <canvas class="emscripten" id="canvas"></canvas>
+	  <h1>The Great Machine Armada</h1>
+	  <div>by: seggiepants</div>
+	  <div>Created for the <a href="https://itch.io/jam/olc-codejam-2020">OLC Code Jam 2020</a>.</div>
+	  <div id="controls">Controls:
+	  <ul>
+	  <li>A or left arrow key to move the tank left</li>
+	  <li>D or right arrow key to move the tank right</li>
+	  <li>Space Bar to fire the laser</li>
+	  <li>P to Pause/Unpause the game</li>
+	  </li>Escape to exit the game (no prompt).
+	  </ul>
+	  </div>
+
+
+    <script type='text/javascript'>
+        var Module = {
+            onRuntimeInitialized: function() {
+                var e = document.getElementById('loadingDiv');
+                e.style.visibility = 'hidden';
+            }, 
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+				canvas.style.width = "800px";
+				canvas.style.height = "600px";
+                return canvas;
+                })()
+        };
+
+    </script>
+    <script>
+          var script = document.createElement('script');
+          script.src = "great_machine_armada.js";
+          document.body.appendChild(script);
+	</script>
+
+    </body>
+</html>

@@ -3,24 +3,36 @@
 #include "game.h"
 #include "../utility.h"
 #include "../sprite/bullet.h"
+#include "../sprite/invader.h"
 #include "../sprite/shield.h"
+#include "../sprite/tank.h"
 
-const int MOVE_SPEED = 400; // pixels per second.
-const int FONT_DEFAULT = 0;
-const int SOUND_BLOOP = 0;
-const int TEXTURE_TANK = 0;
+const double INVADER_SHOOT_DELAY_MIN = 700;
+const int INVADER_SHOOT_RANDOM = 700;
+const double DROP_TOTAL = 12.0;
+const int MAX_COLS = 10; // duplicate data :(
+const int MAX_ROWS = 5; // duplicate data :(
 
 const std::string PATH_BLOOP = "assets/sound/bloop.ogg";
-const std::string PATH_TANK = "assets/image/tank.png";
 const std::string PATH_FONT = "assets/font/NovaSquareBoldOblique.ttf";
+const std::string PATH_LASER = "assets/sound/laser.ogg";
+
 const int FONT_SIZE = 14;
 
 SceneGame::SceneGame() {
-	this->quit = false;
-	this->up = this->down = this->left = this->right = false;
-	this->x = this->y = 0.0;
+	this->quit = false;	
 	this->joystick = NULL;
 	this->pause = false;
+	this->points = 0;
+	this->dropDistance = 0;
+	this->nextDirection = 0.0;
+	this->isGameOver = false;
+	this->left = this->right = false;
+#ifdef DEBUG
+	this->showFPS = true;
+#else
+	this->showFPS = false;
+#endif
 }
 
 SceneGame::~SceneGame() {
@@ -32,11 +44,11 @@ int SceneGame::getNextState() {
 }
 
 void SceneGame::loadMedia() {
-	this->bloop = resource->GetAudio(PATH_BLOOP);
+	this->bloop = this->resource->GetAudio(PATH_BLOOP);
+	this->laser = this->resource->GetAudio(PATH_LASER);
 	this->font = resource->GetFont(PATH_FONT, FONT_SIZE);
-	this->tank = resource->GetImage(this->renderer, PATH_TANK);
-
-	if (this->bloop == NULL || this->font == NULL || this->tank == NULL)
+	
+	if (this->bloop == NULL || this->laser == NULL || this->font == NULL)
 		this->quit = true;
 }
 
@@ -54,23 +66,55 @@ void SceneGame::init(SDL_Window* window, SDL_Renderer* renderer, ResourceManager
 			std::cout << "Warning: Unable to open game controller! SDL Error: \"" << SDL_GetError()  << "\"" << std::endl;
 		}
 	}
-	this->quit = false;
-	this->up = this->down = this->left = this->right = false;
-	this->x = this->y = 0.0;
-	this->pause = false;
 	this->loadMedia();
+	this->tank.init(this->window, this->renderer, this->resource);
+	this->invader.init(this->window, this->renderer, this->resource);
+	this->invaderBullet.init(this->window, this->renderer, this->resource);
 	this->tankBullet.init(this->window, this->renderer, this->resource);
 	this->shield.init(this->window, this->renderer, this->resource);
-	int winW, winH;
+
+	this->initGame();
+}
+
+void SceneGame::initGame()
+{
+	this->points = 0;
+	this->isGameOver = false;
+	this->pause = false;
+	this->quit = false;
+	this->left = false;
+	this->right = false;
+	this->dropDistance = 0.0;
+	this->nextDirection = 0.0;
+	this->invaderShootDelay = INVADER_SHOOT_DELAY_MIN + (double)(rand() % INVADER_SHOOT_RANDOM);
+
+	if (this->tank.length() > 0)
+		this->tank.destroy();
+	this->initTank();
+
+	if (this->invaderBullet.length() > 0)
+		this->invaderBullet.destroy();
+
+	if (this->tankBullet.length() > 0)
+		this->tankBullet.destroy();
+
+	if (this->invader.length() > 0)
+		this->invader.destroy();
+	this->initInvaders();
+
+	int w, h, winW, winH;
 	SDL_GetWindowSize(this->window, &winW, &winH);
-	int w, h;
-	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
-	this->initShields(winH - (2.5 * h));
-	this->x = (winW - w) / 2;
-	this->y = winH - (1.5 * h);
+	int x, y;
+	this->tank[0]->getHitBox(&x, &y, &w, &h);
+	if (this->shield.length() > 0)
+		this->shield.destroy();
+	this->initShields((int)(winH - (2.5 * h)));	
 }
 
 void SceneGame::destroy() {
+	this->tank.destroy();
+	this->invader.destroy();
+	this->invaderBullet.destroy();
 	this->tankBullet.destroy();
 	this->shield.destroy();
 	//Close game controller
@@ -84,11 +128,9 @@ void SceneGame::update(double ms) {
 	double fps = 1000.0 / ms;
 	// std::cout << "fps: " << fps << " seconds: " << (globals.runtime / SDL_GetPerformanceFrequency()) << std::endl;
 	SDL_Event e;
-	double delta;
-	double step;
-	SDL_Rect r;
-	int w, h, winW, winH;
-	bool showGUI = this->pause;
+	int winW, winH;
+	bool showGUI = this->pause || this->isGameOver || this->invader.length() == 0;
+	bool left = false, right = false;
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -126,18 +168,12 @@ void SceneGame::update(double ms) {
 			//Select surfaces based on key press
 			switch (e.key.keysym.sym)
 			{
-			case SDLK_UP:
-				this->up = false;
-				break;
-
-			case SDLK_DOWN:
-				this->down = false;
-				break;
-
+			case SDLK_a:
 			case SDLK_LEFT:
 				this->left = false;
 				break;
 
+			case SDLK_d:
 			case SDLK_RIGHT:
 				this->right = false;
 				break;
@@ -170,18 +206,12 @@ void SceneGame::update(double ms) {
 			//Select surfaces based on key press
 			switch (e.key.keysym.sym)
 			{
-			case SDLK_UP:
-				this->up = true;
-				break;
-
-			case SDLK_DOWN:
-				this->down = true;
-				break;
-
+			case SDLK_a:
 			case SDLK_LEFT:
 				this->left = true;
 				break;
 
+			case SDLK_d:
 			case SDLK_RIGHT:
 				this->right = true;
 				break;
@@ -212,24 +242,6 @@ void SceneGame::update(double ms) {
 					else
 					{
 						this->left = this->right = false;
-					}
-				}
-				//Y axis motion
-				else if (e.jaxis.axis == 1)
-				{
-					//Below of dead zone
-					if (e.jaxis.value < -JOYSTICK_DEAD_ZONE)
-					{
-						this->up = true;
-					}
-					//Above of dead zone
-					else if (e.jaxis.value > JOYSTICK_DEAD_ZONE)
-					{
-						this->down = true;
-					}
-					else
-					{
-						this->up = this->down = false;
 					}
 				}
 			}
@@ -267,77 +279,111 @@ void SceneGame::update(double ms) {
 	io.MouseDown[1] = buttons & SDL_BUTTON(SDL_BUTTON_RIGHT);
 	io.MouseWheel = static_cast<float>(wheel);
 
-	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h); 
 	SDL_GetWindowSize(this->window, &winW, &winH);
 	
 
 	if (!showGUI) {
-		step = (MOVE_SPEED * ms) / 1000.0;		
-				
-		if (this->up) {
-			this->y = (double)std::max<double>(0.0, this->y - step);
-		}
-		if (this->down) {
-			delta = (double)(winH - h - 1);
-			this->y = (double)std::min<double>(delta, this->y + step);
-		}
-		if (this->left) {
-			this->x = (double)std::max<double>(0.0, this->x - step);
-		}
-		if (this->right) {
-			delta = (double)(winW - w - 1);
-			this->x = (double)std::min<double>(delta, this->x + step);
-		}		
+		this->invader.removeInactive();
+		this->invader.update(ms);
+		this->invaderPostUpdate(ms);
+		this->invader.collisionDetect(&this->tankBullet, true);		
+
+		this->tank.update(ms);
+		((Tank*)this->tank[0])->setInput(this->left, this->right);
+		this->tank.collisionDetect(&this->invader, false);
+		this->tank.collisionDetect(&this->invaderBullet, false);
+
+		this->invaderBullet.removeInactive();
+		this->invaderBullet.update(ms);
+
 		this->tankBullet.removeInactive();	
 		this->tankBullet.update(ms);
+
 		this->shield.removeInactive();
 		this->shield.update(ms);
-		this->shield.collisionDetect(&this->tankBullet);
+		this->shield.collisionDetect(&this->tankBullet, true);
+		this->shield.collisionDetect(&this->invader, false);
+		this->shield.collisionDetect(&this->invaderBullet, true);
 	}	
 	
 	if (showGUI) {
 		// Draw a pause message box
-		ImGui::NewFrame();
-		ImGui::SetNextWindowPos(ImVec2((float)(winW / 3.0), (float)(winH / 3.0)), ImGuiCond_::ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2((float)(winW / 3.0), (float)(winH / 8.0)), ImGuiCond_::ImGuiCond_Once);
-		ImGui::Begin("Pause");
-		ImGui::Text("Paused...");
-		if (ImGui::Button("OK")) {
-			this->pause = false;
+		if (this->pause)
+		{
+			ImGui::NewFrame();
+			ImGui::SetNextWindowPos(ImVec2((float)(winW / 3.0), (float)(winH / 3.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::SetNextWindowSize(ImVec2((float)(winW / 3.0), (float)(winH / 8.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::Begin("Pause");
+			ImGui::Text("Paused...");
+			if (ImGui::Button("OK")) {
+				this->pause = false;
+			}
+			ImGui::End();
+			ImGui::EndFrame();
 		}
-		ImGui::End();
-		ImGui::EndFrame();		
+		if (this->isGameOver)
+		{
+			ImGui::NewFrame();
+			ImGui::SetNextWindowPos(ImVec2((float)(winW / 3.0), (float)(winH / 3.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::SetNextWindowSize(ImVec2((float)(winW / 3.0), (float)(winH / 5.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::Begin("Game Over");
+			ImGui::Text("Game Over.");
+			ImGui::Text("Would you like to play again ? ");
+			if (ImGui::Button("Yes")) {
+				this->initGame();
+			}
+			if (ImGui::Button("No")) {
+				this->quit = true;
+			}
+			ImGui::End();
+			ImGui::EndFrame();
+		}
+		else if (this->invader.length() == 0)
+		{
+			ImGui::NewFrame();
+			ImGui::SetNextWindowPos(ImVec2((float)(winW / 4.0), (float)(winH / 3.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::SetNextWindowSize(ImVec2((float)(winW / 2.0), (float)(winH / 6.0)), ImGuiCond_::ImGuiCond_Once);
+			ImGui::Begin("Next Level");
+			ImGui::Text("Congratulations!");
+			ImGui::Text("You have destroyed a wave of the Great Machine Armada.");
+			if (ImGui::Button("Next Level")) {
+				int score = this->points; // preserve the score.
+				this->initGame();
+				this->points = score;
+			}
+			ImGui::End();
+			ImGui::EndFrame();
+		}
 		ImGui::Render();
+
 	}
 
 	SDL_RenderClear(this->renderer);
 
-	SDL_Rect fillR;
-	fillR.x = 0;
-	fillR.y = 0;
-	fillR.w = winW;
-	fillR.h = winH;
+	SDL_Rect r;
+	r.x = 0;
+	r.y = 0;
+	r.w = winW;
+	r.h = winH;
 
-
-	SDL_SetRenderDrawColor(this->renderer, 64, 64, 255, SDL_ALPHA_OPAQUE);
-	SDL_RenderFillRect(this->renderer, &fillR);
+	SDL_SetRenderDrawColor(this->renderer, 8, 8, 32, SDL_ALPHA_OPAQUE);
+	SDL_RenderFillRect(this->renderer, &r);
 	SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	//if (showGUI) ImGui::Render();
 
 	//Apply the image
 	// SDL_RenderClear(this->renderer);
 
-	r.x = (int)this->x;
-	r.y = (int)this->y;
-	r.w = w;
-	r.h = h;
-
-	SDL_RenderCopy(this->renderer, this->tank, NULL, &r);
-
-	this->shield.draw();
+	this->invader.draw();
+	this->invaderBullet.draw();
 	this->tankBullet.draw();
+	this->tank.draw();
+	this->shield.draw();
 	
-	this->drawFPS(fps, winW, winH);
+	if (this->showFPS) {
+		this->drawFPS(fps, winW, winH);
+	}
+	this->drawScore(winW, winH);
 
 	if (showGUI) {
 		// Draw a pause message box
@@ -357,16 +403,41 @@ bool SceneGame::running() {
 
 void SceneGame::spawnTankBullet()
 {
-	Bullet* bullet = new Bullet();
-	bullet->init(this->window, this->renderer, this->resource);
-	bullet->setDirection(-1);
-	int bulletX, bulletY, bulletW, bulletH, w, h;
-	bullet->setPosition(0.0, 0.0);
-	bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
-	SDL_QueryTexture(this->tank, NULL, NULL, &w, &h);
-	bullet->setPosition(this->x + ((w - bulletW) / 2), this->y - bulletH - 1);
-	this->tankBullet.add((Sprite*)bullet);
-	Mix_PlayChannel(-1, this->bloop, 0);
+	if (this->tankBullet.length() == 0)
+	{
+		Tank* tank = ((Tank*)this->tank[0]);
+		int turretX, turretY;
+		tank->getTurrentPosition(&turretX, &turretY);
+		Bullet* bullet = new Bullet();
+		bullet->init(this->window, this->renderer, this->resource);
+		bullet->setDirection(-1);
+		int bulletX, bulletY, bulletW, bulletH;
+		bullet->setPosition(0.0, 0.0);
+		bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
+		turretX -= (bulletW / 2);
+		turretY -= bulletH;
+		bullet->setPosition(turretX, turretY);
+		this->tankBullet.add((Sprite*)bullet);
+		Mix_PlayChannel(-1, this->bloop, 0);
+	}
+}
+
+void SceneGame::initInvaders()
+{
+	this->invader.destroy();
+
+	for (int j = 0; j < MAX_ROWS; ++j)
+	{
+		for (int i = 0; i < MAX_COLS; ++i)
+		{
+			Invader* invader = new Invader();
+			invader->init(this->window, this->renderer, this->resource);
+			invader->setParent(this);
+			invader->setType(j, i);
+			this->invader.add((Sprite*)invader);
+		}
+	}
+
 }
 
 void SceneGame::initShields(int y)
@@ -425,6 +496,15 @@ void SceneGame::initShields(int y)
 	}
 }
 
+void SceneGame::initTank()
+{
+	Tank* tank = new Tank();
+	tank->init(this->window, this->renderer, this->resource);
+	tank->setParent(this);
+	this->tank.add(tank);
+
+}
+
 void SceneGame::drawFPS(double fps, int winW, int winH)
 {
 	// Write the fps
@@ -438,11 +518,131 @@ void SceneGame::drawFPS(double fps, int winW, int winH)
 	SDL_QueryTexture(fpsTex, NULL, NULL, &width, &height);
 	SDL_Rect fpsRect;
 	fpsRect.x = winW - width - 1;
-	fpsRect.y = 0;
+	fpsRect.y = winH - height - 1;
 	fpsRect.w = width;
 	fpsRect.h = height;
 	SDL_RenderCopy(this->renderer, fpsTex, NULL, &fpsRect);	
 
 	SDL_FreeSurface(fpsSurface);
 	SDL_DestroyTexture(fpsTex);
+}
+
+void SceneGame::drawScore(int winW, int winH)
+{
+	// Write the fps
+	char buffer[50];
+	snprintf(buffer, 50, "Score: %d", this->points);
+	SDL_Color fg = { 255, 255, 255 };
+	SDL_Surface* scoreSurface = TTF_RenderText_Solid(this->font, buffer, fg);
+	SDL_Texture* scoreTex = SDL_CreateTextureFromSurface(this->renderer, scoreSurface);
+	int width;
+	int height;
+	SDL_QueryTexture(scoreTex, NULL, NULL, &width, &height);
+	SDL_Rect fpsRect;
+	fpsRect.x = winW - width - 1;
+	fpsRect.y = 0;
+	fpsRect.w = width;
+	fpsRect.h = height;
+	SDL_RenderCopy(this->renderer, scoreTex, NULL, &fpsRect);
+
+	SDL_FreeSurface(scoreSurface);
+	SDL_DestroyTexture(scoreTex);
+}
+
+
+void SceneGame::addPoints(int points)
+{
+	this->points += points;
+}
+
+double SceneGame::getInvaderSpeed()
+{
+	const int SPEED_PER_INVADER = 6; // pixels per second
+	return 40 + (((MAX_COLS * MAX_ROWS) - this->invader.length()) * SPEED_PER_INVADER); 
+}
+
+void SceneGame::invaderPostUpdate(double ms)
+{
+	double dist = (this->getInvaderSpeed() * ms) / 1000.0;
+	if (this->dropDistance > 0.0)
+	{
+		this->dropDistance -= dist;
+		if (this->dropDistance <= 0.0)
+		{
+			this->dropDistance = 0.0;
+
+			for (int i = 0; i < this->invader.length(); ++i)
+			{
+				Invader* enemy = (Invader*)this->invader[i];
+				if (enemy->getActive() && enemy->getVisible())
+				{
+					enemy->setDirection(this->nextDirection, 0.0);
+				}
+			}
+			this->nextDirection = 0.0;
+		}
+	} 
+	else
+	{
+		int x, y, w, h, winW, winH;
+		double dx, dy;
+		SDL_GetWindowSize(this->window, &winW, &winH);
+		for (int i = 0; i < this->invader.length(); ++i)
+		{
+			Invader* enemy = (Invader*)this->invader[i];
+			if (enemy->getActive() && enemy->getVisible())
+			{				
+				enemy->getHitBox(&x, &y, &w, &h);
+				enemy->getDirection(&dx, &dy);
+				if (dx <= 0.0 && x <= 0)
+				{
+					for (int j = 0; j < this->invader.length(); ++j)
+					{
+						((Invader*) this->invader[j])->setDirection(0.0, 1.0);
+					}
+					this->dropDistance = DROP_TOTAL;
+					this->nextDirection = 1.0;
+					break;
+				}
+				else if (dx >= 0.0 && x >= (winW - w - 1))
+				{
+					for (int j = 0; j < this->invader.length(); ++j)
+					{
+						((Invader*)this->invader[j])->setDirection(0.0, 1.0);
+					}
+					this->dropDistance = DROP_TOTAL;
+					this->nextDirection = -1.0;
+					break;
+				}
+			}
+		}
+	}
+	this->invaderShootDelay -= ms;
+	if (this->invaderShootDelay <= 0.0)
+	{
+		this->invaderShootDelay = INVADER_SHOOT_DELAY_MIN + (double)(rand() % INVADER_SHOOT_RANDOM);
+		// pick an invader.
+		if (this->invader.length() > 0 && this->invaderBullet.length() == 0)
+		{
+			Invader* invader = ((Invader*)this->invader[rand() % this->invader.length()]);
+			int turretX, turretY;
+			invader->getTurrentPosition(&turretX, &turretY);
+			turretY += 1;
+			Bullet* bullet = new Bullet();
+			bullet->init(this->window, this->renderer, this->resource);
+			bullet->setDirection(1);
+			int bulletX, bulletY, bulletW, bulletH;
+			bullet->setPosition(0.0, 0.0);
+			bullet->getHitBox(&bulletX, &bulletY, &bulletW, &bulletH);
+			turretX -= (bulletW / 2);
+			bullet->setPosition(turretX, turretY);
+			this->invaderBullet.add((Sprite*)bullet);
+			Mix_PlayChannel(-1, this->laser, 0);
+		}
+	}
+}
+
+void SceneGame::gameOver()
+{
+	this->isGameOver = true;
 }

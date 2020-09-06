@@ -5,7 +5,7 @@
 
 #include "sprite.h"
 
-class Shield : Sprite
+class Shield : public Sprite
 {
 public:
 	Shield();

@@ -48,7 +48,7 @@ bool init()
 	else
 	{
 		//Create window
-		globals.window = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+		globals.window = SDL_CreateWindow("The Great Machine Armada", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 		if (globals.window == NULL)
 		{
 			std::cout << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
@@ -155,7 +155,7 @@ void close()
 	TTF_Quit();
 
 #ifdef __EMSCRIPTEN__
-	std::cout << "Shutting down" << std::endl;
+	// std::cout << "Shutting down" << std::endl;
 #else
 	//Destroy window	
 	ImGuiSDL::Deinitialize();
